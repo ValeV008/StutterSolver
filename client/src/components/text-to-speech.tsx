@@ -79,32 +79,28 @@ export function TextToSpeech() {
     }
 
     try {
-      // In a real implementation, this would play the actual generated audio
-      // For now, we'll simulate audio playback
-      const audio = new Audio();
+      const audio = new Audio(generatedAudio.audioData);
+      setAudioElement(audio);
       
-      // Create a simple beep sound as placeholder
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.value = 440;
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 1);
-      
-      setIsPlaying(true);
-      
-      setTimeout(() => {
+      audio.onloadeddata = () => {
+        audio.play();
+        setIsPlaying(true);
+      };
+
+      audio.onended = () => {
         setIsPlaying(false);
-      }, 1000);
+        setAudioElement(null);
+      };
+
+      audio.onerror = () => {
+        setIsPlaying(false);
+        setAudioElement(null);
+        toast({
+          title: "Error",
+          description: "Failed to play audio.",
+          variant: "destructive",
+        });
+      };
       
     } catch (error) {
       toast({
@@ -119,8 +115,8 @@ export function TextToSpeech() {
     if (!generatedAudio) return;
 
     try {
-      const blob = base64ToBlob(generatedAudio.audioData, 'audio/wav');
-      downloadAudio(blob, `voice-clone-${Date.now()}.wav`);
+      const blob = base64ToBlob(generatedAudio.audioData, 'audio/mpeg');
+      downloadAudio(blob, `voice-clone-${Date.now()}.mp3`);
     } catch (error) {
       toast({
         title: "Error",

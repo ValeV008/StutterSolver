@@ -117,18 +117,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertTtsGenerationSchema.parse(req.body);
       
-      // In a real implementation, this would integrate with ElevenLabs or similar TTS service
-      // For now, we'll simulate the generation process
-      const mockAudioData = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj";
+      // Generate speech using ElevenLabs
+      const response = await fetch("https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM", {
+        method: "POST",
+        headers: {
+          "Accept": "audio/mpeg",
+          "Content-Type": "application/json",
+          "xi-api-key": process.env.ELEVENLABS_API_KEY || "",
+        },
+        body: JSON.stringify({
+          text: validatedData.inputText,
+          model_id: "eleven_monolingual_v1",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.5,
+            style: 0.0,
+            use_speaker_boost: true
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`ElevenLabs API error: ${response.status}`);
+      }
+
+      const audioBuffer = await response.arrayBuffer();
+      const audioBase64 = Buffer.from(audioBuffer).toString('base64');
+      const audioData = `data:audio/mpeg;base64,${audioBase64}`;
       
       const ttsGeneration = await storage.createTtsGeneration({
         ...validatedData,
-        audioData: mockAudioData,
-        duration: Math.floor(validatedData.inputText.length / 10) // Rough estimate
+        audioData,
+        duration: Math.floor(validatedData.inputText.length / 15) // Rough estimate based on speech rate
       });
       
       res.status(201).json(ttsGeneration);
     } catch (error) {
+      console.error("TTS Generation error:", error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid TTS generation data", errors: error.errors });
       }
