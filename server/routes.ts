@@ -159,6 +159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("TTS Generation error:", error);
       if (error instanceof z.ZodError) {
+        console.error("Validation errors:", error.errors);
         return res.status(400).json({ message: "Invalid TTS generation data", errors: error.errors });
       }
       res.status(500).json({ message: "Failed to generate speech" });
