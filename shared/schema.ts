@@ -46,6 +46,8 @@ export const insertPhraseSchema = createInsertSchema(phrases).omit({
 export const insertTtsGenerationSchema = createInsertSchema(ttsGenerations).omit({
   id: true,
   createdAt: true,
+  audioData: true,
+  duration: true,
 });
 
 export type Recording = typeof recordings.$inferSelect;
