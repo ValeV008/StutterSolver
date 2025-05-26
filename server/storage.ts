@@ -16,7 +16,7 @@ export interface IStorage {
   deletePhrase(id: number): Promise<boolean>;
   
   // TTS Generations
-  createTtsGeneration(generation: InsertTtsGeneration): Promise<TtsGeneration>;
+  createTtsGeneration(data: { inputText: string; speed: string; pitch: string; audioData: string; duration: number }): Promise<TtsGeneration>;
   getTtsGeneration(id: number): Promise<TtsGeneration | undefined>;
   getAllTtsGenerations(): Promise<TtsGeneration[]>;
   deleteTtsGeneration(id: number): Promise<boolean>;
@@ -149,11 +149,15 @@ export class MemStorage implements IStorage {
   }
 
   // TTS Generation methods
-  async createTtsGeneration(insertTtsGeneration: InsertTtsGeneration): Promise<TtsGeneration> {
+  async createTtsGeneration(data: { inputText: string; speed: string; pitch: string; audioData: string; duration: number }): Promise<TtsGeneration> {
     const id = this.currentTtsId++;
     const ttsGeneration: TtsGeneration = {
-      ...insertTtsGeneration,
       id,
+      inputText: data.inputText,
+      speed: data.speed,
+      pitch: data.pitch,
+      audioData: data.audioData,
+      duration: data.duration,
       createdAt: new Date(),
     };
     this.ttsGenerations.set(id, ttsGeneration);

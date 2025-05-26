@@ -115,7 +115,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/tts-generations", async (req, res) => {
     try {
+      console.log("TTS request body:", req.body);
       const validatedData = insertTtsGenerationSchema.parse(req.body);
+      console.log("Validated data:", validatedData);
       
       // Generate speech using ElevenLabs
       const response = await fetch("https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM", {
@@ -146,7 +148,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const audioData = `data:audio/mpeg;base64,${audioBase64}`;
       
       const ttsGeneration = await storage.createTtsGeneration({
-        ...validatedData,
+        inputText: validatedData.inputText,
+        speed: validatedData.speed || "1.0",
+        pitch: validatedData.pitch || "1.0",
         audioData,
         duration: Math.floor(validatedData.inputText.length / 15) // Rough estimate based on speech rate
       });
