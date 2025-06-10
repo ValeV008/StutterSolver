@@ -125,8 +125,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error("ElevenLabs API key is not configured");
       }
 
-      // Generate speech using ElevenLabs
-      const response = await fetch("https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM", {
+      // Get all recordings
+      const recordings = await storage.getAllRecordings();
+      if (recordings.length < 10) {
+        throw new Error("Not enough voice samples. Please record at least 10 phrases first.");
+      }
+
+      // Create a custom voice model if it doesn't exist
+      let voiceId = process.env.CUSTOM_VOICE_ID;
+      if (!voiceId) {
+        console.log("No existing voice model found. Creating new custom voice model...");
+        // Create a new voice model
+        const createVoiceResponse = await fetch("https://api.elevenlabs.io/v1/voices/add", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "xi-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            name: "Custom Voice",
+            description: "Custom voice model created from user recordings",
+            files: recordings.map(recording => ({
+              data: recording.audioData.split(',')[1], // Remove data URL prefix
+              name: `sample_${recording.id}.mp3`
+            }))
+          }),
+        });
+
+        if (!createVoiceResponse.ok) {
+          const errorText = await createVoiceResponse.text();
+          console.error("Failed to create custom voice model:", errorText);
+          throw new Error(`Failed to create custom voice model: ${errorText}`);
+        }
+
+        const voiceData = await createVoiceResponse.json();
+        voiceId = voiceData.voice_id;
+        console.log(`Successfully created new voice model with ID: ${voiceId}`);
+
+        console.log(`Starting to add ${recordings.length} voice samples to the model...`);
+        // Add recordings to the voice model
+        for (const recording of recordings) {
+          console.log(`Adding sample ${recording.id} to voice model...`);
+          const audioData = recording.audioData.split(',')[1]; // Remove data URL prefix
+          const addSampleResponse = await fetch(`https://api.elevenlabs.io/v1/voices/${voiceId}/samples`, {
+            method: "POST",
+            headers: {
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+              "xi-api-key": apiKey,
+            },
+            body: JSON.stringify({
+              audio_data: audioData,
+            }),
+          });
+
+          if (!addSampleResponse.ok) {
+            console.error(`Failed to add sample ${recording.id} to voice model:`, await addSampleResponse.text());
+          } else {
+            console.log(`Successfully added sample ${recording.id} to voice model`);
+          }
+        }
+        console.log("Finished adding all voice samples to the model");
+
+        // Store the voice ID for future use
+        process.env.CUSTOM_VOICE_ID = voiceId;
+        console.log("Voice model ID has been stored for future use");
+      } else {
+        console.log(`Using existing voice model with ID: ${voiceId}`);
+      }
+
+      console.log("Generating speech using the custom voice model...");
+      // Generate speech using the custom voice model
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
         method: "POST",
         headers: {
           "Accept": "audio/mpeg",
@@ -138,7 +209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           model_id: "eleven_monolingual_v1",
           voice_settings: {
             stability: 0.5,
-            similarity_boost: 0.5,
+            similarity_boost: 0.75,
             style: 0.0,
             use_speaker_boost: true
           }
