@@ -10,11 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Plus, Play, RotateCcw, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { base64ToBlob } from "@/lib/audio-utils";
 import type { Phrase } from "@shared/schema";
 
 export function PhraseLibrary() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newPhraseText, setNewPhraseText] = useState("");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -68,6 +71,111 @@ export function PhraseLibrary() {
     }
 
     addPhraseMutation.mutate(newPhraseText);
+  };
+
+  const handlePlayRecording = async (recordingId: number) => {
+    try {
+      // Stop any currently playing audio
+      if (currentAudio) {
+        currentAudio.pause();
+        setCurrentAudio(null);
+        setIsPlaying(false);
+      }
+
+      // Fetch the recording
+      const response = await apiRequest("GET", `/api/recordings/${recordingId}`);
+      const recording = await response.json();
+      console.log('Recording data received:', recording);
+
+      if (!recording.audioData) {
+        throw new Error('No audio data found in recording');
+      }
+
+      // Validate audio data format
+      if (!recording.audioData.startsWith('data:audio/webm;codecs=opus;base64,')) {
+        throw new Error('Invalid audio format');
+      }
+
+      // Convert base64 to blob
+      const blob = base64ToBlob(recording.audioData, 'audio/webm;codecs=opus');
+      console.log('Audio blob created:', blob);
+
+      // Create audio element
+      const audio = new Audio();
+      audio.controls = false;
+      audio.autoplay = false;
+
+      // Create object URL
+      const audioUrl = URL.createObjectURL(blob);
+      console.log('Audio URL created:', audioUrl);
+
+      // Set up event listeners
+      audio.onloadedmetadata = () => {
+        console.log('Audio metadata loaded:', {
+          duration: audio.duration,
+          readyState: audio.readyState,
+          networkState: audio.networkState
+        });
+      };
+
+      audio.oncanplay = () => {
+        console.log('Audio can play');
+      };
+
+      audio.oncanplaythrough = () => {
+        console.log('Audio can play through');
+      };
+
+      audio.onloadeddata = async () => {
+        console.log('Audio data loaded, starting playback');
+        try {
+          await audio.play();
+          setIsPlaying(true);
+        } catch (error) {
+          console.error('Error playing audio:', error);
+          toast({
+            title: "Error",
+            description: "Failed to play audio. Please try again.",
+            variant: "destructive",
+          });
+        }
+      };
+
+      audio.onended = () => {
+        console.log('Audio playback ended');
+        setIsPlaying(false);
+        setCurrentAudio(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      audio.onerror = (e) => {
+        console.error('Audio error:', {
+          error: audio.error,
+          networkState: audio.networkState,
+          readyState: audio.readyState
+        });
+        setIsPlaying(false);
+        setCurrentAudio(null);
+        URL.revokeObjectURL(audioUrl);
+        toast({
+          title: "Error",
+          description: "Failed to play recording.",
+          variant: "destructive",
+        });
+      };
+
+      // Set the source and store the audio element
+      audio.src = audioUrl;
+      setCurrentAudio(audio);
+
+    } catch (error) {
+      console.error('Error in handlePlayRecording:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to play recording.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
@@ -160,31 +268,24 @@ export function PhraseLibrary() {
             <p className="text-gray-500">No phrases available. Add some phrases to get started.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="space-y-4">
             {phrases.map((phrase, index) => (
               <div
                 key={phrase.id}
-                className="border border-gray-200 rounded-lg p-4 hover:border-primary transition-colors"
+                className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
               >
-                <div className="flex items-start justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-800">
-                    Phrase #{(index + 1).toString().padStart(3, '0')}
-                  </span>
-                  <Badge
-                    variant={phrase.isRecorded ? "default" : "secondary"}
-                    className={
-                      phrase.isRecorded
-                        ? "bg-secondary text-white"
-                        : "bg-gray-200 text-gray-600"
-                    }
-                  >
-                    {phrase.isRecorded ? "Recorded" : "Pending"}
-                  </Badge>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="text-sm text-gray-500 mb-1">
+                      Phrase {index + 1}
+                    </div>
+                    <div className="text-gray-800 font-medium">
+                      {phrase.text}
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600 mb-3 line-clamp-3">
-                  "{phrase.text}"
-                </p>
-                <div className="flex items-center justify-between">
+
+                <div className="flex items-center justify-between mt-3">
                   <span className="text-xs text-gray-500">
                     {phrase.isRecorded ? "Completed" : "Not recorded"}
                   </span>
@@ -196,6 +297,7 @@ export function PhraseLibrary() {
                           variant="ghost"
                           className="h-8 w-8 p-0 text-primary hover:text-indigo-700"
                           title="Play recording"
+                          onClick={() => handlePlayRecording(phrase.recordingId!)}
                         >
                           <Play className="h-3 w-3" />
                         </Button>

@@ -71,6 +71,7 @@ export class MemStorage implements IStorage {
     const recording: Recording = {
       ...insertRecording,
       id,
+      quality: "good",
       createdAt: new Date(),
     };
     this.recordings.set(id, recording);
@@ -106,7 +107,7 @@ export class MemStorage implements IStorage {
     // Update phrase as not recorded
     const phrase = this.phrases.get(recording.phraseId);
     if (phrase) {
-      const updatedPhrase = { ...phrase, isRecorded: false, recordingId: undefined };
+      const updatedPhrase = { ...phrase, isRecorded: false, recordingId: null };
       this.phrases.set(phrase.id, updatedPhrase);
     }
 
@@ -120,7 +121,9 @@ export class MemStorage implements IStorage {
       ...insertPhrase,
       id,
       isRecorded: false,
-      recordingId: undefined,
+      recordingId: null,
+      category: insertPhrase.category || "training",
+      difficulty: insertPhrase.difficulty || "medium",
       createdAt: new Date(),
     };
     this.phrases.set(id, phrase);

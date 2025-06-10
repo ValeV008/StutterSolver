@@ -20,15 +20,23 @@ export function blobToBase64(blob: Blob): Promise<string> {
 }
 
 export function base64ToBlob(base64: string, mimeType: string): Blob {
-  const byteCharacters = atob(base64.split(',')[1]);
-  const byteNumbers = new Array(byteCharacters.length);
+  // Remove the data URL prefix if present
+  const base64Data = base64.includes('base64,') ? base64.split('base64,')[1] : base64;
   
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  try {
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: mimeType });
+  } catch (error) {
+    console.error('Error converting base64 to blob:', error);
+    throw new Error('Failed to convert base64 to blob');
   }
-  
-  const byteArray = new Uint8Array(byteNumbers);
-  return new Blob([byteArray], { type: mimeType });
 }
 
 export function downloadAudio(blob: Blob, filename: string): void {

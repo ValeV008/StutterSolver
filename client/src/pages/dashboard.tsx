@@ -83,7 +83,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="border-t border-gray-200 mt-8 pt-6 text-center text-sm text-gray-600">
-            <p>&copy; 2024 VoiceClone. All rights reserved.</p>
+            <p>&copy; 2025 StutterSolver. All rights reserved.</p>
           </div>
         </div>
       </footer>
