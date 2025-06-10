@@ -119,13 +119,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertTtsGenerationSchema.parse(req.body);
       console.log("Validated data:", validatedData);
       
+      // Check if API key is configured
+      const apiKey = process.env.ELEVENLABS_API_KEY;
+      if (!apiKey) {
+        throw new Error("ElevenLabs API key is not configured");
+      }
+
       // Generate speech using ElevenLabs
       const response = await fetch("https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM", {
         method: "POST",
         headers: {
           "Accept": "audio/mpeg",
           "Content-Type": "application/json",
-          "xi-api-key": process.env.ELEVENLABS_API_KEY || "",
+          "xi-api-key": apiKey,
         },
         body: JSON.stringify({
           text: validatedData.inputText,
@@ -140,7 +146,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(`ElevenLabs API error: ${response.status} ${errorData?.detail || response.statusText}`);
       }
 
       const audioBuffer = await response.arrayBuffer();
@@ -162,7 +169,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Validation errors:", error.errors);
         return res.status(400).json({ message: "Invalid TTS generation data", errors: error.errors });
       }
-      res.status(500).json({ message: "Failed to generate speech" });
+      res.status(500).json({ 
+        message: "Failed to generate speech",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
